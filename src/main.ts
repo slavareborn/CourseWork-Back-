@@ -19,6 +19,7 @@ async function start() {
     const configService = app.get(ConfigService);
     const corsOrigin =
       configService.get<string>('URL') || 'http://localhost:80';
+    logger.log(corsOrigin);
 
     const corsOptions: CorsOptions = {
       origin: corsOrigin,
