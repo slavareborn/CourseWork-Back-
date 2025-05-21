@@ -85,3 +85,5 @@ dist
 # End of https://www.toptal.com/developers/gitignore/api/node
 
 docker-compose.override.yml
+
+client_secret.json

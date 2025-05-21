@@ -16,6 +16,11 @@ import { User } from 'src/repository/User.entity';
 import { DataSource, Repository } from 'typeorm';
 import * as argon2 from 'argon2';
 import { JwtService } from '@nestjs/jwt';
+import { UserService } from 'src/user/user.service';
+import { Response } from 'express';
+import { instanceToPlain } from 'class-transformer';
+import { EmailService } from 'src/email/email.service';
+import { IUserRequest, IUserResponse } from 'src/types/interface';
 
 @Injectable()
 export class AuthService {
@@ -98,10 +103,11 @@ export class AuthService {
         lastName: newUser.lastName,
         city: newUser.city.city,
         createdAt: newUser.createdAt,
-        updateAt: newUser.updateAt,
+        updatedAt: newUser.updateAt,
         phone: newUser.phone,
         age: newUser.age,
         sex: newUser.sex,
+        email: newUser.email,
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -188,10 +194,11 @@ export class AuthService {
         lastName: saveUser.lastName,
         city: saveUser.city.city,
         createdAt: saveUser.createdAt,
-        updateAt: saveUser.updateAt,
+        updatedAt: saveUser.updateAt,
         phone: saveUser.phone,
         age: saveUser.age,
         sex: saveUser.sex,
+        email: saveUser.email,
       };
     } catch (error) {
       this.logger.error(`Error signin in user`);
@@ -204,7 +211,7 @@ export class AuthService {
       res.clearCookie('refresh token');
       return { message: 'successfully logged out' };
     } catch (error) {
-      this.logger.error('Error during logout');
+      this.logger.error(error.message);
       throw new Error('Помилка під час виходу з акаунту.');
     }
   }

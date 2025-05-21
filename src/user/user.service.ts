@@ -13,8 +13,7 @@ import { User } from '../repository/User.entity';
 import { IUserResponse } from '../types/interface';
 import { UpdateUserDto } from './dto/UpdateUserDto';
 import { AuthService } from 'src/auth/auth.service';
-import { Location } from 'src/repository/Location.entity';
-import { Favorite } from 'src/repository/Favorite.entity';
+import { City } from 'src/repository/City.entity';
 import { VerificationCodeDto } from './dto/VerificationCodeDto';
 
 @Injectable()
@@ -26,10 +25,8 @@ export class UserService {
     private readonly userRepository: Repository<User>,
     @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
-    @InjectRepository(Location)
-    private readonly locationRepository: Repository<Location>,
-    @InjectRepository(Favorite)
-    private readonly favoriteRepository: Repository<Favorite>,
+    @InjectRepository(City)
+    private readonly cityRepository: Repository<City>,
   ) {}
 
   async findUserById(userId: number): Promise<IUserResponse | null> {
@@ -38,12 +35,7 @@ export class UserService {
     try {
       const user = await this.userRepository.findOne({
         where: { id: userId },
-        relations: [
-          'location',
-          'animals',
-          'animals.location',
-          'animals.images',
-        ],
+        relations: ['city'],
       });
 
       if (!user) {
@@ -53,53 +45,17 @@ export class UserService {
 
       this.logger.log(`User found: ${JSON.stringify(user)}`);
 
-      const favoritesRelations = await this.favoriteRepository.find({
-        where: { user: { id: userId } },
-        relations: ['animal', 'animal.location', 'animal.images'],
-      });
-
-      const favorites = favoritesRelations.map((favorite) => ({
-        id: favorite.animal.id,
-        name: favorite.animal.name,
-        type: favorite.animal.type,
-        sex: favorite.animal.sex,
-        breed: favorite.animal.breed,
-        color: favorite.animal.color,
-        sterilized: favorite.animal.sterilized,
-        status: favorite.animal.status,
-        age: favorite.animal.age,
-        diseases: favorite.animal.diseases,
-        phone: favorite.animal.phone,
-        images: favorite.animal.images,
-        location: {
-          id: favorite.animal.location.id,
-          city: favorite.animal.location.city,
-          createdAt: favorite.animal.location.createdAt,
-        },
-        createdAt: favorite.animal.createdAt,
-        updatedAt: favorite.animal.updatedAt,
-      }));
-
       return {
         id: user.id,
         firstName: user.firstName,
         lastName: user.lastName,
+        sex: user.sex,
+        age: user.age,
         email: user.email || null,
         phone: user.phone || null,
-        location: user.location?.city || null,
-        isAdmin: user.isAdmin,
-        animals:
-          user.animals.map((animal) => ({
-            ...animal,
-            location: {
-              id: animal.location.id,
-              city: animal.location.city,
-              createdAt: animal.location.createdAt,
-            },
-          })) || [],
-        favorites: favorites,
+        city: user.city?.city,
         createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+        updatedAt: user.updateAt,
       };
     } catch (error) {
       this.logger.error(
@@ -118,31 +74,31 @@ export class UserService {
 
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      relations: ['location'],
+      relations: ['city'],
     });
 
     if (!user) {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    if (updateUserDto.location) {
-      let location = await this.locationRepository.findOne({
-        where: { city: updateUserDto.location },
+    if (updateUserDto.city) {
+      let city = await this.cityRepository.findOne({
+        where: { city: updateUserDto.city },
       });
 
-      if (!location) {
-        location = this.locationRepository.create({
-          city: updateUserDto.location,
+      if (!city) {
+        city = this.cityRepository.create({
+          city: updateUserDto.city,
         });
-        await this.locationRepository.save(location);
-        this.logger.log(`Created new location: ${updateUserDto.location}`);
+        await this.cityRepository.save(city);
+        this.logger.log(`Created new city: ${updateUserDto.city}`);
       }
 
-      user.locationId = location.id;
+      user.cityId = city.id;
     }
 
     Object.assign(user, updateUserDto);
-    delete user.location;
+    delete user.city;
 
     return await this.userRepository.save(user);
   }
@@ -201,8 +157,6 @@ export class UserService {
       );
     }
 
-    // TODO: In a real implementation, this would send an SMS or email
-    // For now, we'll just return a success message
     return {
       message: user.phone
         ? `Будь ласка, введіть 6-значний код, відправлений на номер ***${user.phone.slice(-3)}`

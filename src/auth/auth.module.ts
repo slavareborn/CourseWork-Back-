@@ -1,4 +1,4 @@
-import { Inject, MiddlewareConsumer, Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -6,6 +6,8 @@ import { JwtStrategy } from './jwt.strategy';
 import { AuthController } from './auth.controller';
 import { GoogleStrategy } from './google.strategy';
 import { AuthService } from './auth.service';
+import { createValidationMiddleware } from 'src/middleware/validation.middleware';
+import { userSchema } from 'src/schemas/signup.schema';
 
 @Module({
   imports: [

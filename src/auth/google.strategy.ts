@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Profile } from 'passport';
 import { Strategy } from 'passport-jwt';
 import { AuthService } from './auth.service';
+import { Request, Response } from 'express';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {

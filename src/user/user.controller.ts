@@ -17,7 +17,7 @@ import { UserService } from './user.service';
 import { CredentialResponseDto } from './dto/CredentialResponseDto';
 import { UpdateUserDto } from './dto/UpdateUserDto';
 import { VerificationCodeDto } from './dto/VerificationCodeDto';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { User } from '../repository/User.entity';
 
 @ApiTags('User')

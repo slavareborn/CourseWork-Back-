@@ -11,6 +11,7 @@ import {
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SignUpDto } from './dto/signup.dto';
 import { AuthService } from './auth.service';
+import { Response } from 'express';
 
 @ApiTags('Authentification')
 @Controller('/auth')
@@ -29,7 +30,7 @@ export class AuthController {
   ) {
     this.logger.log('Signup request recieved');
     try {
-      const user = await this.authService.signup(Body, res);
+      const user = await this.authService.signup(body, res);
       this.logger.log(`user${user.email}succesfully signup`);
       return user;
     } catch (error: unknown) {

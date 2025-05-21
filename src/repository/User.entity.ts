@@ -42,9 +42,11 @@ export class User {
   @JoinTable()
   providers: Provider[];
   @Column({ type: 'boolean', default: false })
-  isEmailConfirmed: 'boolean';
+  isEmailConfirmed: boolean;
   @CreateDateColumn({ type: 'timestamp' })
   createdAt: Date;
   @UpdateDateColumn({ type: 'timestamp' })
   updateAt: Date;
+  @Column({ type: 'boolean', default: false })
+  isVerified: boolean;
 }
