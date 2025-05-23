@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
+import { SeedService } from './seed/seed.service';
 import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 import { Logger } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
@@ -18,8 +19,7 @@ async function start() {
 
     const configService = app.get(ConfigService);
     const corsOrigin =
-      configService.get<string>('URL') || 'http://localhost:80';
-    logger.log(corsOrigin);
+      configService.get<string>('URL') || 'http://localhost:80/';
 
     const corsOptions: CorsOptions = {
       origin: corsOrigin,
@@ -42,7 +42,18 @@ async function start() {
     app.setGlobalPrefix('api');
     logger.log(`Global prefix set to: /api`);
 
+    const seedService = app.get(SeedService);
     logger.log('Seed service initialized.');
+
+    const hasUsers = await seedService.hasDataInTable('user');
+
+    if (!hasUsers) {
+      logger.log('Seeding database...');
+      await seedService.seed();
+      logger.log('Database seeded.');
+    } else {
+      logger.log('Users data already exists. Skipping seeding.');
+    }
 
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('/docs', app, document);

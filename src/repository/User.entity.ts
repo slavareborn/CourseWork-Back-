@@ -49,4 +49,6 @@ export class User {
   updateAt: Date;
   @Column({ type: 'boolean', default: false })
   isVerified: boolean;
+  @Column({ type: 'boolean', default: false })
+  isAdmin: boolean;
 }
