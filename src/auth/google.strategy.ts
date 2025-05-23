@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { Profile } from 'passport';
-import { Strategy } from 'passport-jwt';
+import { Strategy } from 'passport-google-oauth20';
 import { AuthService } from './auth.service';
 import { Request, Response } from 'express';
 
@@ -16,18 +16,21 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     super({
       clientID: configService.get<string>('GOOGLE_APP_ID'),
       clientSecret: configService.get<string>('GOOGLE_APP_SECRET'),
-      callbackURL: 'http://localhost:8000/api/auth/google/redirect',
-      Scope: ['email', 'profile'],
+      callbackURL:
+        configService.get<string>('GOOGLE_CALLBACK_URL') ||
+        'http://localhost:3000/auth/google/callback',
+      scope: ['email', 'profile'],
       passReqToCallback: true,
     });
   }
+
   async validate(
     req: Request,
     accessToken: string,
     refreshToken: string,
     profile: Profile,
   ): Promise<any> {
-    this.logger.log(`Validating Facebook user: ${profile.id}`);
+    this.logger.log(`Validating Google user: ${profile.id}`);
     this.logger.debug(`Profile data: ${JSON.stringify(profile)}`);
     const res: Response = req.res;
     this.logger.log('Google Auth');

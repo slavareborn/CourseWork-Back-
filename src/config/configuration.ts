@@ -9,4 +9,18 @@ export default (): IConfig => ({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
   },
+  auth: {
+    jwt: {
+      secret:
+        process.env.JWT_SECRET ||
+        'default_super_secret_key_do_not_use_in_production',
+    },
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackUrl:
+        process.env.GOOGLE_CALLBACK_URL ||
+        'http://localhost:3000/auth/google/callback',
+    },
+  },
 });

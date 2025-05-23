@@ -24,8 +24,8 @@ import { IUserRequest, IUserResponse } from 'src/types/interface';
 
 @Injectable()
 export class AuthService {
-  private readonly saltRounds = 10;
   private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -39,8 +39,9 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly dataSource: DataSource,
   ) {}
+
   generateJWT = (user: User): string => {
-    this.logger.log(`generateJWT for user${user.email}`);
+    this.logger.log(`generateJWT for user ${user.email}`);
     return this.jwtService.sign({
       email: user.email,
       userID: user.id,
@@ -48,10 +49,12 @@ export class AuthService {
       lastName: user.lastName,
     });
   };
+
   async hashPassword(password: string): Promise<string> {
     this.logger.log(`starting hashing`);
     return await argon2.hash(password);
   }
+
   async signup(data: IUserRequest, res: Response): Promise<IUserResponse> {
     const { firstName, lastName, age, sex, email, phone, password, city } =
       data;
@@ -64,17 +67,19 @@ export class AuthService {
         where: { email },
       });
       if (existingUser) {
-        this.logger.warn(`user with email already exist`);
+        this.logger.warn(`user with email already exists`);
         throw new ConflictException('Ця поштова адреса вже зайнята');
       }
+
       const hashedPassword = await this.hashPassword(password);
       let locationEntity = await queryRunner.manager.findOne(City, {
-        where: { city: city },
+        where: { city },
       });
       if (!locationEntity) {
         locationEntity = queryRunner.manager.create(City, { city });
-        await queryRunner.manager.save(city, locationEntity);
+        await queryRunner.manager.save(locationEntity);
       }
+
       const newUser = queryRunner.manager.create(User, {
         firstName,
         lastName,
@@ -86,6 +91,7 @@ export class AuthService {
         city: locationEntity,
       });
       await queryRunner.manager.save(User, newUser);
+
       const token = this.generateJWT(newUser);
       res.cookie('token', token, {
         httpOnly: true,
@@ -93,10 +99,13 @@ export class AuthService {
         sameSite: 'strict',
         maxAge: 1000 * 60 * 60 * 24 * 7,
       });
+
       await queryRunner.commitTransaction();
       delete newUser.password;
-      this.logger.log(`user with email singed up successfully`);
+
+      this.logger.log(`user with email signed up successfully`);
       await this.emailService.sendEmailConfirmation(email, token);
+
       return {
         id: newUser.id,
         firstName: newUser.firstName,
@@ -111,31 +120,36 @@ export class AuthService {
       };
     } catch (error) {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`signup error${error.message}`);
-      throw new ConflictException('signup failed');
+      this.logger.error(`signup error: ${error.message}`);
+      throw new ConflictException('Помилка під час реєстрації');
     } finally {
       await queryRunner.release();
     }
   }
+
   async confirmEmail(authHeader: string): Promise<User> {
     try {
-      const token = authHeader?.replace('Beerer ', '');
+      const token = authHeader?.replace('Bearer ', '');
       if (!token) {
         throw new HttpException('Токен не надано.', HttpStatus.BAD_REQUEST);
       }
-      this.logger.log('token recieved for verification');
-      const deCodded = this.jwtService.verify(token, {
+
+      this.logger.log('Token received for verification');
+      const decoded = this.jwtService.verify(token, {
         secret: process.env.JWT_SECRET,
       });
-      const userID = deCodded.userID;
-      this.logger.log(`userID ${userID}`);
+      const userID = decoded.userID;
+
+      this.logger.log(`UserID: ${userID}`);
       const user = await this.userRepository.findOne({ where: { id: userID } });
       if (!user) {
         this.logger.warn(`User with ID not found`);
         throw new NotFoundException('Користувача з таким ID не знайдено');
       }
+
       user.isEmailConfirmed = true;
       await this.userRepository.save(user);
+
       this.logger.log(
         `Email successfully confirmed for user with ID: ${userID}`,
       );
@@ -152,42 +166,49 @@ export class AuthService {
       throw error;
     }
   }
+
   async comparePassword(
     password: string,
     hashedPassword: string,
   ): Promise<boolean> {
     return argon2.verify(hashedPassword, password);
   }
+
   async signin(data: IUserRequest, res: Response): Promise<IUserResponse> {
     const { email, password } = data;
     try {
       const existingUser = await this.userRepository.findOne({
         where: { email },
-        relations: ['City'],
+        relations: ['city'],
       });
       if (!existingUser) {
-        this.logger.log(`Email is not found`);
+        this.logger.log(`Email not found`);
         throw new NotFoundException('Не знайдено користувача з такою поштою.');
       }
+
       const isPasswordValid = await this.comparePassword(
         password,
         existingUser.password,
       );
       if (!isPasswordValid) {
-        this.logger.warn(`Invalid credationals for email`);
+        this.logger.warn(`Invalid credentials for email`);
         throw new UnauthorizedException('Невірний логін або пароль');
       }
+
       const saveUser = instanceToPlain(existingUser);
-      const token = await this.generateJWT(existingUser);
+      const token = this.generateJWT(existingUser);
+
       if (saveUser && saveUser.password) {
         delete saveUser.password;
       }
+
       res.cookie('token', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         maxAge: 1000 * 60 * 60 * 24 * 7,
       });
+
       return {
         id: saveUser.id,
         firstName: saveUser.firstName,
@@ -201,30 +222,34 @@ export class AuthService {
         email: saveUser.email,
       };
     } catch (error) {
-      this.logger.error(`Error signin in user`);
+      this.logger.error(`Error signing in user`);
       throw error;
     }
   }
+
   async logout(res: Response): Promise<Record<string, string>> {
     try {
       res.clearCookie('token');
-      res.clearCookie('refresh token');
-      return { message: 'successfully logged out' };
+      res.clearCookie('refresh_token');
+      return { message: 'Успішно вийшли з акаунту' };
     } catch (error) {
       this.logger.error(error.message);
       throw new Error('Помилка під час виходу з акаунту.');
     }
   }
+
   async findOrCreateUserByProvider(
     profile: any,
     providerName: string,
-    res: any,
+    res: Response,
   ): Promise<any> {
     const { id, emails, name } = profile;
-    this.logger.log(`Provider${providerName}`);
+    this.logger.log(`Provider ${providerName}`);
+
     let provider = await this.providerRepository.findOne({
       where: { externalProviderId: id, name: providerName },
     });
+
     if (!provider) {
       this.logger.log(`Creating new provider`);
       provider = this.providerRepository.create({
@@ -233,9 +258,11 @@ export class AuthService {
       });
       await this.providerRepository.save(provider);
     }
+
     let user = await this.userRepository.findOne({
       where: { providerId: provider.id },
     });
+
     if (!user) {
       user = this.userRepository.create({
         firstName: name?.givenName || null,
@@ -250,13 +277,15 @@ export class AuthService {
       this.logger.log(`User successfully saved`);
       await this.userRepository.save(user);
     }
-    const token = await this.generateJWT(user);
+
+    const token = this.generateJWT(user);
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
+
     return {
       token,
       user: {

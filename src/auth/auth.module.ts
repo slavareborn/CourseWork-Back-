@@ -1,4 +1,9 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import {
+  forwardRef,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+} from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -8,6 +13,12 @@ import { GoogleStrategy } from './google.strategy';
 import { AuthService } from './auth.service';
 import { createValidationMiddleware } from 'src/middleware/validation.middleware';
 import { userSchema } from 'src/schemas/signup.schema';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { User } from 'src/repository/User.entity';
+import { City } from 'src/repository/City.entity';
+import { Provider } from 'src/repository/Provider.entity';
+import { EmailModule } from 'src/email/email.module';
+import { UserModule } from 'src/user/user.module';
 
 @Module({
   imports: [
@@ -21,6 +32,9 @@ import { userSchema } from 'src/schemas/signup.schema';
         signOptions: { expiresIn: '1h' },
       }),
     }),
+    TypeOrmModule.forFeature([User, City, Provider]),
+    EmailModule,
+    forwardRef(() => UserModule),
   ],
   providers: [AuthService, JwtStrategy, GoogleStrategy],
   controllers: [AuthController],
