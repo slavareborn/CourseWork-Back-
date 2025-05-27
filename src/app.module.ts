@@ -1,11 +1,14 @@
-import { UserModule } from './user/user.module';
-import { HealthController } from './health/health.controller';
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-// import { CacheModule } from '@nestjs/cache-manager';
-import { ConfigModule } from '@nestjs/config';
+import { join } from 'path';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+
+import configuration from './config/configuration';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import configuration from './config/configuration';
+import { UserModule } from './user/user.module';
+import { HealthController } from './health/health.controller';
 import { SeedModule } from './seed/seed.module';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
@@ -20,6 +23,32 @@ import { UserMiddleware } from './middleware/user.middleware';
       load: [configuration],
       envFilePath: '.env',
     }),
+
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        transport: {
+          host: configService.get<string>('SMTP_HOST'),
+          port: configService.get<number>('SMTP_PORT'),
+          auth: {
+            user: configService.get<string>('SMTP_USER'),
+            pass: configService.get<string>('SMTP_PASS'),
+          },
+        },
+        defaults: {
+          from: `"No Reply" <${configService.get<string>('SMTP_USER')}>`,
+        },
+        template: {
+          dir: join(__dirname, '..', 'templates'),
+          adapter: new HandlebarsAdapter(),
+          options: {
+            strict: true,
+          },
+        },
+      }),
+    }),
+
     DatabaseModule,
     SeedModule,
     HealthModule,
