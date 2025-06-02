@@ -94,7 +94,10 @@ export class AuthService {
       });
 
       const token = await this.generateJWT(userWithRelations);
-      await this.emailService.sendEmailConfirmation(userWithRelations.email, token);
+      await this.emailService.sendEmailConfirmation(
+        userWithRelations.email,
+        token,
+      );
 
       return {
         user: userWithRelations,
@@ -225,7 +228,7 @@ export class AuthService {
     res: Response,
   ): Promise<IUserResponse> {
     const provider = await this.findOrCreateProvider(providerName, profile.id);
-    
+
     let user = await this.userRepository.findOne({
       where: { email: profile.emails[0].value },
     });
