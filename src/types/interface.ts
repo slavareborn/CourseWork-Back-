@@ -1,3 +1,5 @@
+import { User } from '../repository/User.entity';
+
 export interface IUserRequest {
   firstName: string;
   lastName: string;
@@ -10,14 +12,6 @@ export interface IUserRequest {
 }
 
 export interface IUserResponse {
-  id: number;
-  firstName: string;
-  lastName: string;
-  age: number;
-  sex: string;
-  email: string;
-  phone: string;
-  city: string;
-  createdAt: Date;
-  updatedAt: Date;
+  user: User;
+  token: string;
 }

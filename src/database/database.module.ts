@@ -1,4 +1,4 @@
-import { Module, Logger } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DatabaseService } from './database.service';
@@ -12,8 +12,6 @@ import { DatabaseService } from './database.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
-        const logger = new Logger('DatabaseModule');
-
         const databaseConfig: TypeOrmModuleOptions = {
           type: 'postgres',
           host: configService.get<string>('DB_HOST'),
@@ -26,7 +24,6 @@ import { DatabaseService } from './database.service';
           logging: true,
         };
 
-        logger.log(`Database Config: ${JSON.stringify(databaseConfig)}`);
         return databaseConfig;
       },
     }),

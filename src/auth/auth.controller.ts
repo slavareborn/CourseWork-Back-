@@ -30,8 +30,8 @@ export class AuthController {
   ) {
     this.logger.log('Signup request recieved');
     try {
-      const user = await this.authService.signup(body, res);
-      this.logger.log(`user${user.email}succesfully signup`);
+      const user = await this.authService.signup(body);
+      // this.logger.log(`user ${user.user.email} successfully signed up`);
       return user;
     } catch (error: unknown) {
       if (error instanceof ConflictException) {
