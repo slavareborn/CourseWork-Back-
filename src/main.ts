@@ -45,7 +45,7 @@ async function start() {
     const seedService = app.get(SeedService);
     logger.log('Seed service initialized.');
 
-    const hasUsers = await seedService.hasDataInTable('user');
+    const hasUsers = await seedService.hasDataInTable();
 
     if (!hasUsers) {
       logger.log('Seeding database...');

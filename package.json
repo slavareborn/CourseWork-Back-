@@ -11,7 +11,6 @@
       "npm run format"
     ]
   },
-
   "engines": {
     "node": "20.17.0",
     "npm": "10.8.2"
@@ -62,6 +61,7 @@
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.5",
+    "googleapis": "^149.0.0",
     "handlebars": "^4.7.8",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
@@ -71,6 +71,7 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.13.0",
+    "rate-limiter-flexible": "^7.1.1",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",

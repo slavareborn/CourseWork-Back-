@@ -5,7 +5,6 @@ import {
   HttpStatus,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -21,11 +20,10 @@ import { Response } from 'express';
 import { instanceToPlain } from 'class-transformer';
 import { EmailService } from 'src/email/email.service';
 import { IUserRequest, IUserResponse } from 'src/types/interface';
+import { LogMethod } from '../decorator/log.decorator';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -40,34 +38,34 @@ export class AuthService {
     private readonly dataSource: DataSource,
   ) {}
 
-  generateJWT = (user: User): string => {
-    this.logger.log(`generateJWT for user ${user.email}`);
+  @LogMethod('log')
+  generateJWT(user: User): string {
     return this.jwtService.sign({
       email: user.email,
       userID: user.id,
       firstName: user.firstName,
       lastName: user.lastName,
     });
-  };
+  }
 
+  @LogMethod('log')
   async hashPassword(password: string): Promise<string> {
-    this.logger.log(`starting hashing`);
     return await argon2.hash(password);
   }
 
+  @LogMethod('log')
   async signup(data: IUserRequest, res: Response): Promise<IUserResponse> {
     const { firstName, lastName, age, sex, email, phone, password, city } =
       data;
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
+
     try {
-      this.logger.log(`start signup`);
       const existingUser = await queryRunner.manager.findOne(User, {
         where: { email },
       });
       if (existingUser) {
-        this.logger.warn(`user with email already exists`);
         throw new ConflictException('Ця поштова адреса вже зайнята');
       }
 
@@ -103,7 +101,6 @@ export class AuthService {
       await queryRunner.commitTransaction();
       delete newUser.password;
 
-      this.logger.log(`user with email signed up successfully`);
       await this.emailService.sendEmailConfirmation(email, token);
 
       return {
@@ -118,55 +115,39 @@ export class AuthService {
         sex: newUser.sex,
         email: newUser.email,
       };
-    } catch (error) {
+    } catch {
       await queryRunner.rollbackTransaction();
-      this.logger.error(`signup error: ${error.message}`);
       throw new ConflictException('Помилка під час реєстрації');
     } finally {
       await queryRunner.release();
     }
   }
 
+  @LogMethod('log')
   async confirmEmail(authHeader: string): Promise<User> {
-    try {
-      const token = authHeader?.replace('Bearer ', '');
-      if (!token) {
-        throw new HttpException('Токен не надано.', HttpStatus.BAD_REQUEST);
-      }
-
-      this.logger.log('Token received for verification');
-      const decoded = this.jwtService.verify(token, {
-        secret: process.env.JWT_SECRET,
-      });
-      const userID = decoded.userID;
-
-      this.logger.log(`UserID: ${userID}`);
-      const user = await this.userRepository.findOne({ where: { id: userID } });
-      if (!user) {
-        this.logger.warn(`User with ID not found`);
-        throw new NotFoundException('Користувача з таким ID не знайдено');
-      }
-
-      user.isEmailConfirmed = true;
-      await this.userRepository.save(user);
-
-      this.logger.log(
-        `Email successfully confirmed for user with ID: ${userID}`,
-      );
-      delete user.password;
-      return user;
-    } catch (error) {
-      if (error.name === 'JsonWebTokenError') {
-        this.logger.error(`Invalid or expired token`);
-        throw new UnauthorizedException(
-          'Неправильний або протермінований токен',
-        );
-      }
-      this.logger.error(`Error during email confirmation`, error.stack);
-      throw error;
+    const token = authHeader?.replace('Bearer ', '');
+    if (!token) {
+      throw new HttpException('Токен не надано.', HttpStatus.BAD_REQUEST);
     }
+
+    const decoded = this.jwtService.verify(token, {
+      secret: process.env.JWT_SECRET,
+    });
+    const userID = decoded.userID;
+
+    const user = await this.userRepository.findOne({ where: { id: userID } });
+    if (!user) {
+      throw new NotFoundException('Користувача з таким ID не знайдено');
+    }
+
+    user.isEmailConfirmed = true;
+    await this.userRepository.save(user);
+
+    delete user.password;
+    return user;
   }
 
+  @LogMethod('log')
   async comparePassword(
     password: string,
     hashedPassword: string,
@@ -174,108 +155,117 @@ export class AuthService {
     return argon2.verify(hashedPassword, password);
   }
 
+  @LogMethod('log')
   async signin(data: IUserRequest, res: Response): Promise<IUserResponse> {
     const { email, password } = data;
-    try {
-      const existingUser = await this.userRepository.findOne({
-        where: { email },
-        relations: ['city'],
-      });
-      if (!existingUser) {
-        this.logger.log(`Email not found`);
-        throw new NotFoundException('Не знайдено користувача з такою поштою.');
-      }
-
-      const isPasswordValid = await this.comparePassword(
-        password,
-        existingUser.password,
-      );
-      if (!isPasswordValid) {
-        this.logger.warn(`Invalid credentials for email`);
-        throw new UnauthorizedException('Невірний логін або пароль');
-      }
-
-      const saveUser = instanceToPlain(existingUser);
-      const token = this.generateJWT(existingUser);
-
-      if (saveUser && saveUser.password) {
-        delete saveUser.password;
-      }
-
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 1000 * 60 * 60 * 24 * 7,
-      });
-
-      return {
-        id: saveUser.id,
-        firstName: saveUser.firstName,
-        lastName: saveUser.lastName,
-        city: saveUser.city.city,
-        createdAt: saveUser.createdAt,
-        updatedAt: saveUser.updateAt,
-        phone: saveUser.phone,
-        age: saveUser.age,
-        sex: saveUser.sex,
-        email: saveUser.email,
-      };
-    } catch (error) {
-      this.logger.error(`Error signing in user`);
-      throw error;
+    const existingUser = await this.userRepository.findOne({
+      where: { email },
+      relations: ['city'],
+    });
+    if (!existingUser) {
+      throw new NotFoundException('Не знайдено користувача з такою поштою.');
     }
+
+    const isPasswordValid = await this.comparePassword(
+      password,
+      existingUser.password,
+    );
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Невірний логін або пароль');
+    }
+
+    const saveUser = instanceToPlain(existingUser);
+    const token = this.generateJWT(existingUser);
+
+    if (saveUser && saveUser.password) {
+      delete saveUser.password;
+    }
+
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    });
+
+    return {
+      id: existingUser.id,
+      firstName: existingUser.firstName,
+      lastName: existingUser.lastName,
+      city: existingUser.city.city,
+      createdAt: existingUser.createdAt,
+      updatedAt: existingUser.updateAt,
+      phone: existingUser.phone,
+      age: existingUser.age,
+      sex: existingUser.sex,
+      email: existingUser.email,
+    };
   }
 
+  @LogMethod('log')
   async logout(res: Response): Promise<Record<string, string>> {
-    try {
-      res.clearCookie('token');
-      res.clearCookie('refresh_token');
-      return { message: 'Успішно вийшли з акаунту' };
-    } catch (error) {
-      this.logger.error(error.message);
-      throw new Error('Помилка під час виходу з акаунту.');
-    }
+    res.clearCookie('token');
+    return { message: 'Успішний вихід' };
   }
 
+  @LogMethod('log')
   async findOrCreateUserByProvider(
     profile: any,
     providerName: string,
     res: Response,
   ): Promise<any> {
-    const { id, emails, name } = profile;
-    this.logger.log(`Provider ${providerName}`);
-
-    let provider = await this.providerRepository.findOne({
-      where: { externalProviderId: id, name: providerName },
-    });
-
-    if (!provider) {
-      this.logger.log(`Creating new provider`);
-      provider = this.providerRepository.create({
-        name: providerName,
-        externalProviderId: id,
-      });
-      await this.providerRepository.save(provider);
-    }
-
+    const email = profile.emails[0].value;
     let user = await this.userRepository.findOne({
-      where: { providerId: provider.id },
+      where: { email },
+      relations: ['providers'],
     });
 
     if (!user) {
-      user = this.userRepository.create({
-        firstName: name?.givenName || null,
-        lastName: name?.familyName || null,
-        email: emails?.[0]?.value || null,
-        password: null,
-        providerId: provider.id,
-        isEmailConfirmed: true,
-        age: null,
-        sex: null,
-      });
-      this.logger.log(`User successfully saved`);
-      await this.userRepository.save(user);
+      const queryRunner = this.dataSource.createQueryRunner();
+      await queryRunner.connect();
+      await queryRunner.startTransaction();
+
+      try {
+        const provider = queryRunner.manager.create(Provider, {
+          name: providerName,
+          externalProviderId: profile.id,
+        });
+        await queryRunner.manager.save(provider);
+
+        user = queryRunner.manager.create(User, {
+          email,
+          firstName: profile.name.givenName,
+          lastName: profile.name.familyName,
+          isEmailConfirmed: true,
+          providers: [provider],
+        });
+
+        await queryRunner.manager.save(user);
+        await queryRunner.commitTransaction();
+      } catch (error) {
+        await queryRunner.rollbackTransaction();
+        throw error;
+      } finally {
+        await queryRunner.release();
+      }
+    } else {
+      const hasProvider = user.providers?.some(
+        (p) => p.name === providerName && p.externalProviderId === profile.id,
+      );
+
+      if (!hasProvider) {
+        const provider = this.providerRepository.create({
+          name: providerName,
+          externalProviderId: profile.id,
+        });
+        await this.providerRepository.save(provider);
+
+        if (!user.providers) {
+          user.providers = [];
+        }
+        user.providers.push(provider);
+        await this.userRepository.save(user);
+      }
     }
 
     const token = this.generateJWT(user);
@@ -286,19 +276,6 @@ export class AuthService {
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
 
-    return {
-      token,
-      user: {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        phone: user.phone,
-        createdAt: user.createdAt,
-        updateAt: user.updateAt,
-        age: null,
-        sex: null,
-      },
-    };
+    return { user, token };
   }
 }
