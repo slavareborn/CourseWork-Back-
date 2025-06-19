@@ -63,6 +63,10 @@ export class AuthService {
         throw new ConflictException('User with this email already exists');
       }
 
+      if (!userDto.password) {
+        throw new UnauthorizedException('Password is required for signup');
+      }
+
       const city = await this.cityRepository.findOne({
         where: { city: userDto.city },
       });
@@ -72,6 +76,10 @@ export class AuthService {
       }
 
       const hashedPassword = await this.hashPassword(userDto.password);
+
+      if (!hashedPassword) {
+        throw new Error('Failed to hash password');
+      }
 
       const newUser = this.userRepository.create({
         firstName: userDto.firstName,
@@ -94,7 +102,10 @@ export class AuthService {
       });
 
       const token = await this.generateJWT(userWithRelations);
-      await this.emailService.sendEmailConfirmation(userWithRelations.email, token);
+      await this.emailService.sendEmailConfirmation(
+        userWithRelations.email,
+        token,
+      );
 
       return {
         user: userWithRelations,
@@ -109,17 +120,28 @@ export class AuthService {
   }
 
   @LogMethod()
-  async confirmEmail(token: string): Promise<void> {
+  async confirmEmail(
+    token: string,
+  ): Promise<{ user: Partial<User>; isEmailConfirmed: boolean }> {
     try {
-      const decoded = this.jwtService.verify(token);
-      const userID = decoded.userId;
+      if (!token) {
+        throw new UnauthorizedException('Token is required');
+      }
 
-      if (!userID) {
-        throw new UnauthorizedException('Invalid token');
+      let decoded;
+      try {
+        decoded = this.jwtService.verify(token);
+      } catch (error) {
+        throw new UnauthorizedException('Invalid or expired token');
+      }
+
+      if (!decoded || !decoded.userId) {
+        throw new UnauthorizedException('Invalid token payload');
       }
 
       const user = await this.userRepository.findOne({
-        where: { id: userID },
+        where: { id: decoded.userId },
+        relations: ['city'],
       });
 
       if (!user) {
@@ -127,16 +149,42 @@ export class AuthService {
       }
 
       if (user.isEmailConfirmed) {
-        throw new ConflictException('Email already confirmed');
+        return {
+          user: {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            age: user.age,
+            sex: user.sex,
+            phone: user.phone,
+            city: user.city,
+          },
+          isEmailConfirmed: true,
+        };
       }
 
       user.isEmailConfirmed = true;
       await this.userRepository.save(user);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          age: user.age,
+          sex: user.sex,
+          phone: user.phone,
+          city: user.city,
+        },
+        isEmailConfirmed: true,
+      };
     } catch (error) {
       if (error instanceof HttpException) {
         throw error;
       }
-      throw new UnauthorizedException('Invalid or expired token');
+      throw new UnauthorizedException('Token verification failed');
     }
   }
 
@@ -150,10 +198,32 @@ export class AuthService {
       const user = await this.userRepository.findOne({
         where: { email },
         relations: ['city'],
+        select: {
+          id: true,
+          email: true,
+          password: true,
+          firstName: true,
+          lastName: true,
+          age: true,
+          sex: true,
+          phone: true,
+          isEmailConfirmed: true,
+          cityId: true,
+        },
       });
-
+      console.log(user, 1);
       if (!user) {
         throw new NotFoundException('Email not found');
+      }
+      console.log(user.password, 1);
+      if (!user.password) {
+        throw new UnauthorizedException(
+          'Invalid user credentials configuration',
+        );
+      }
+
+      if (!password) {
+        throw new UnauthorizedException('Password is required');
       }
 
       const isPasswordValid = await argon2.verify(user.password, password);
@@ -164,7 +234,6 @@ export class AuthService {
 
       if (!user.isEmailConfirmed) {
         const token = await this.generateJWT(user);
-        // const confirmationUrl = `${process.env.APP_URL}/auth/confirm?token=${token}`;
         await this.emailService.sendEmailConfirmation(user.email, token);
         throw new UnauthorizedException(
           'Please confirm your email. A new confirmation email has been sent.',
@@ -180,8 +249,22 @@ export class AuthService {
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       });
 
+      delete user.password;
+
+      const userResponse = {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        age: user.age,
+        sex: user.sex,
+        phone: user.phone,
+        city: user.city,
+        isEmailConfirmed: user.isEmailConfirmed,
+      };
+
       return {
-        user: instanceToPlain(user) as User,
+        user: userResponse as User,
         token,
       };
     } catch (error) {
@@ -225,7 +308,7 @@ export class AuthService {
     res: Response,
   ): Promise<IUserResponse> {
     const provider = await this.findOrCreateProvider(providerName, profile.id);
-    
+
     let user = await this.userRepository.findOne({
       where: { email: profile.emails[0].value },
     });

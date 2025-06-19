@@ -1,4 +1,26 @@
 import { Logger } from '@nestjs/common';
+import { Response } from 'express';
+
+const safeStringify = (obj: any): string => {
+  if (obj instanceof Response) {
+    return '[Express Response]';
+  }
+
+  try {
+    const seen = new WeakSet();
+    return JSON.stringify(obj, (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          return '[Circular]';
+        }
+        seen.add(value);
+      }
+      return value;
+    });
+  } catch (error) {
+    return '[Complex Object]';
+  }
+};
 
 export function LogMethod(
   level: 'log' | 'warn' | 'error' = 'log',
@@ -12,13 +34,14 @@ export function LogMethod(
       const start = Date.now();
       try {
         logger[level](
-          `[${className}] ${methodName} called with args: ${JSON.stringify(args)} `,
+          `[${className}] ${methodName} called with args: ${safeStringify(args)}`,
         );
         const result = await originalMethod.apply(this, args);
-        const durating = Date.now() - start;
+        const duration = Date.now() - start;
         logger[level](
-          `[${className}] ${methodName} returned in${durating}: ${JSON.stringify(result)} `,
+          `[${className}] ${methodName} returned in ${duration}ms: ${safeStringify(result)}`,
         );
+        return result;
       } catch (error) {
         logger.error(
           `[${className}] ${methodName} throw error: ${error.message}`,

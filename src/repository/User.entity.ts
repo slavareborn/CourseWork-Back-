@@ -29,7 +29,7 @@ export class User {
   email: string;
   @Column()
   phone: string;
-  @Column({ nullable: true })
+  @Column({ nullable: true, select: false })
   password: string;
   @Column()
   cityId: number;
